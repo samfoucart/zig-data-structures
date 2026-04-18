@@ -34,7 +34,7 @@ pub fn AvlTree(
             };
 
             internal_stack: ArrayStack(TraversalRecursionState),
-            tree: *AvlTree,
+            tree: *AvlTree(T, compareFn),
 
             const ItrSelf = @This();
 
@@ -44,18 +44,18 @@ pub fn AvlTree(
 
             pub fn next(self: *ItrSelf, gpa: Allocator) !?T {
                 if (self.internal_stack.size == 0) {
-                    try self.internal_stack.push(gpa, .{ .state = TraversalRecursionState.first, .node = self.tree.root });
+                    try self.internal_stack.push(gpa, .{ .state = TraversalRecursionStates.first, .node = self.tree.root });
                 }
 
                 while (self.internal_stack.size > 0) {
-                    const current = try self.internal_stack.pop();
+                    const current = try self.internal_stack.pop(gpa);
 
                     if (current.node) |node_nn| {
-                        if (current.state == TraversalRecursionState.first) {
-                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionState.second, .node = current.node });
-                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionState.first, .node = node_nn.left });
-                        } else if (current.state == TraversalRecursionState.second) {
-                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionState.first, .node = node_nn.right });
+                        if (current.state == TraversalRecursionStates.first) {
+                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionStates.second, .node = current.node });
+                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionStates.first, .node = node_nn.left });
+                        } else if (current.state == TraversalRecursionStates.second) {
+                            try self.internal_stack.push(gpa, .{ .state = TraversalRecursionStates.first, .node = node_nn.right });
 
                             return node_nn.val;
                         }
@@ -136,12 +136,16 @@ pub fn AvlTree(
             self.* = undefined;
         }
 
-        fn rotateLeft(node: ?*AvlNode) !?*AvlNode {
+        fn rotateLeft(self: *Self, node: ?*AvlNode) !?*AvlNode {
             if (node) |node_nn| {
                 std.debug.assert(node_nn.right != null);
                 if (node_nn.right) |right| {
                     node_nn.right = right.left;
                     right.left = node_nn;
+
+                    node_nn.height = self.calculateHeight(node_nn);
+                    right.height = self.calculateHeight(right);
+
                     return right;
                 } else {
                     return error.InvalidInternalState;
@@ -177,7 +181,8 @@ pub fn AvlTree(
             return if (height_left > height_right) height_left + 1 else height_right + 1;
         }
 
-        fn getHeight(node: ?*AvlNode) i32 {
+        fn getHeight(self: *Self, node: ?*AvlNode) i32 {
+            _ = self;
             if (node) |node_nn| {
                 return node_nn.height;
             }
@@ -261,31 +266,31 @@ pub fn AvlTree(
                 var recursion = ArrayStack(RecursionState).empty;
                 defer recursion.deinit(gpa);
 
-                recursion.push(.{ .traversal_position = TraversalPosition.initial, .node = self.root });
+                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.initial, .node = self.root });
 
                 var last_touched_node: ?*AvlNode = null;
 
                 while (recursion.size > 0) {
-                    const current = try recursion.pop();
+                    const current = try recursion.pop(gpa);
                     if (current.node) |node| {
                         if (current.traversal_position == TraversalPosition.initial) {
-                            try recursion.push(.{ .traversal_position = TraversalPosition.addNode, .node = current.node });
+                            try recursion.push(gpa, .{ .traversal_position = TraversalPosition.addNode, .node = current.node });
 
                             const comparison = compareFn(val, node.val);
                             if (comparison == std.math.Order.lt or comparison == std.math.Order.eq) {
-                                try recursion.push(.{ .traversal_position = TraversalPosition.initial, .node = node.left });
+                                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.initial, .node = node.left });
                             } else {
-                                try recursion.push(.{ .traversal_position = TraversalPosition.initial, .node = node.right });
+                                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.initial, .node = node.right });
                             }
                         } else if (current.traversal_position == TraversalPosition.addNode) {
                             const comparison = compareFn(val, node.val);
 
                             if (comparison == std.math.Order.lt or comparison == std.math.Order.eq) {
                                 node.left = last_touched_node;
-                                node.left = try fixAvlProperty(node.left);
+                                node.left = try self.fixAvlProperty(node.left);
                             } else {
                                 node.right = last_touched_node;
-                                node.right = try fixAvlProperty(node.right);
+                                node.right = try self.fixAvlProperty(node.right);
                             }
 
                             node.height = self.calculateHeight(node);
@@ -294,7 +299,7 @@ pub fn AvlTree(
                         }
                     } else {
                         const new_node = try gpa.create(AvlNode);
-                        new_node = .{
+                        new_node.* = .{
                             .val = val,
                             .height = 0,
                             .left = null,
@@ -310,7 +315,7 @@ pub fn AvlTree(
                 std.debug.assert(self.size == 0);
 
                 const new_node = try gpa.create(AvlNode);
-                new_node = .{
+                new_node.* = .{
                     .val = val,
                     .height = 0,
                     .left = null,
@@ -334,4 +339,12 @@ test "init" {
 
     var my_avl_tree = AvlTree(i32, order_i32).empty;
     defer my_avl_tree.deinit(gpa);
+
+    try my_avl_tree.add(gpa, 5);
+
+    var iter = my_avl_tree.iter();
+    defer iter.deinit(gpa);
+    const result = try iter.next(gpa);
+
+    try std.testing.expect(result == 5);
 }
