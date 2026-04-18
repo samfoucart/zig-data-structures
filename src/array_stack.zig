@@ -12,7 +12,7 @@ pub fn ArrayStack(
 
         const Self = @This();
 
-        const empty: Self = .{
+        pub const empty: Self = .{
             .internal_items = null,
             .size = 0,
             .public_items = &.{},
