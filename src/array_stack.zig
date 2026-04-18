@@ -2,6 +2,8 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+/// Stack for storing generic data.
+/// This is implemented as an ArrayList.
 pub fn ArrayStack(
     comptime T: type,
 ) type {
@@ -12,12 +14,14 @@ pub fn ArrayStack(
 
         const Self = @This();
 
+        /// A stack containing no elements
         pub const empty: Self = .{
             .internal_items = null,
             .size = 0,
             .public_items = &.{},
         };
 
+        /// Free memory used by the stack
         pub fn deinit(self: *Self, gpa: Allocator) void {
             if (self.internal_items) |internal_items| {
                 gpa.free(internal_items);
@@ -28,6 +32,7 @@ pub fn ArrayStack(
             self.* = undefined;
         }
 
+        /// Add an element to the top of the stack
         pub fn push(self: *Self, gpa: Allocator, val: T) !void {
             if (self.internal_items) |internal_items| {
                 if (self.size == internal_items.len) {
@@ -44,6 +49,8 @@ pub fn ArrayStack(
             }
         }
 
+        /// Remove an element from the top of the stack.
+        /// This does not currently shrink or free any memory.
         pub fn pop(self: *Self, gpa: Allocator) !T {
             _ = gpa;
             if (self.internal_items) |internal_items| {
@@ -56,6 +63,7 @@ pub fn ArrayStack(
             return error.EmptyListAccess;
         }
 
+        /// Get the top element of the stack without removing it.
         pub fn peek(self: *Self) !T {
             if (self.internal_items) |internal_items| {
                 return internal_items[self.size - 1];
