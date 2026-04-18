@@ -223,10 +223,10 @@ pub fn AvlTree(
                     std.debug.assert(node_nn.right != null);
                     if (node_nn.right) |right| {
                         const right_balance = self.getHeight(right.right) - self.getHeight(right.left);
-                        std.debug.assert(right_balance == 1 or right_balance == -1);
+                        std.debug.assert(right_balance == 1 or right_balance == -1 or right_balance == 0);
 
                         // Right Right Imbalance
-                        if (right_balance == 1) {
+                        if (right_balance == 1 or right_balance == 0) {
                             std.debug.print("AvlTree.fixAvlProperty(self, {d}) - Right Right Imbalance - Rotating Left {d}\n", .{ node_nn.val, node_nn.val });
                             return try self.rotateLeft(node_nn);
                         }
@@ -250,7 +250,7 @@ pub fn AvlTree(
                     std.debug.assert(node_nn.left != null);
                     if (node_nn.left) |left| {
                         const left_balance = self.getHeight(left.right) - self.getHeight(left.left);
-                        std.debug.assert(left_balance == 1 or left_balance == -1);
+                        std.debug.assert(left_balance == 1 or left_balance == -1 or left_balance == 0);
 
                         // Left Right Imbalance
                         if (left_balance == 1) {
@@ -261,7 +261,7 @@ pub fn AvlTree(
                         }
 
                         // Left Left Imabalance
-                        if (left_balance == -1) {
+                        if (left_balance == -1 or left_balance == 0) {
                             std.debug.print("AvlTree.fixAvlProperty(self, {d}) - Left Left Imbalance - Rotating Right {d}\n", .{ node_nn.val, node_nn.val });
                             return try self.rotateRight(node_nn);
                         }
@@ -365,6 +365,64 @@ pub fn AvlTree(
 
             self.size += 1;
         }
+
+        pub fn popFront(self: *Self, gpa: Allocator) !?T {
+            if (self.root != null) {
+                const TraversalPosition = enum { initial, fixAvl };
+
+                const RecursionState = struct {
+                    traversal_position: TraversalPosition,
+                    node: ?*AvlNode,
+                };
+
+                var recursion = ArrayStack(RecursionState).empty;
+                defer recursion.deinit(gpa);
+
+                var last_touched_node: ?*AvlNode = null;
+                var result: ?T = null;
+
+                std.debug.print("AvlTree.popFront(self, gpa) - adding root to stack\n", .{});
+                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.initial, .node = self.root });
+
+                while (recursion.size > 0) {
+                    std.debug.print("AvlTree.popFront(self, gpa) - popping from stack\n", .{});
+                    const current = try recursion.pop(gpa);
+                    if (current.node) |node| {
+                        if (current.traversal_position == TraversalPosition.initial) {
+                            std.debug.print("AvlTree.popFront(self, gpa) - popped {d} initially\n", .{node.val});
+                            if (node.left != null) {
+                                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.fixAvl, .node = current.node });
+                                std.debug.print("AvlTree.popFront(self, gpa) - going left from {d}\n", .{node.val});
+                                try recursion.push(gpa, .{ .traversal_position = TraversalPosition.initial, .node = node.left });
+                            } else {
+                                std.debug.print("AvlTree.popFront(self, gpa) - freeing {d}\n", .{node.val});
+                                last_touched_node = node.right;
+                                result = node.val;
+                                node.right = null;
+                                gpa.destroy(node);
+                            }
+                        } else if (current.traversal_position == TraversalPosition.fixAvl) {
+                            std.debug.print("AvlTree.popFront(self, gpa) - popped {d} to fixAvl\n", .{node.val});
+                            std.debug.print("AvlTree.popFront(self, gpa) - Left pointer value: {*}\n", .{node.left});
+                            std.debug.print("AvlTree.popFront(self, gpa) - last touched value: {*}\n", .{last_touched_node});
+                            current.node.?.left = last_touched_node;
+                            current.node.?.left = try self.fixAvlProperty(node.left);
+                            std.debug.print("AvlTree.popFront(self, gpa) - Left pointer value: {*}\n", .{node.left});
+                            last_touched_node = current.node;
+                        }
+                    }
+                }
+
+                self.root = last_touched_node;
+                self.root = try self.fixAvlProperty(self.root);
+
+                self.size -= 1;
+
+                return result;
+            } else {
+                return null;
+            }
+        }
     };
 }
 
@@ -466,4 +524,27 @@ test "init" {
     try expectEqual(0, my_avl_tree.root.?.right.?.left.?.right.?.height);
     try expectEqual(100, my_avl_tree.root.?.right.?.right.?.val);
     try expectEqual(0, my_avl_tree.root.?.right.?.right.?.height);
+
+    const inorder = [_]i32{ -10, -5, 1, 2, 5, 7, 10, 50, 100 };
+    {
+        var iter = my_avl_tree.iter();
+        defer iter.deinit(gpa);
+
+        var i: usize = 0;
+        while (try iter.next(gpa)) |num| {
+            defer i += 1;
+
+            try expectEqual(inorder[i], num);
+        }
+    }
+
+    var i: usize = 0;
+    while (try my_avl_tree.popFront(gpa)) |num| {
+        defer i += 1;
+
+        try expectEqual(inorder[i], num);
+    }
+
+    // try expectEqual(-10, try my_avl_tree.popFront(gpa));
+    // try expectEqual(-5, try my_avl_tree.popFront(gpa));
 }
