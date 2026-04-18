@@ -5,6 +5,15 @@ const ArrayStack = @import("./array_stack.zig").ArrayStack;
 
 const Allocator = std.mem.Allocator;
 
+/// AVL Tree for storing generic data.
+/// Get an initial instance with `.empty`.
+///
+/// Provide `compareFn` that returns `Order.lt` when its first
+/// argument should get popped before its second argument,
+/// `Order.eq` if the arguments are equal priority, or `Order.gt`
+/// if the second argument should be popped first.
+/// For example, to make `popFront` return the smallest number, provide
+/// `fn lessThan(a: T, b: T) Order { return std.math.order(a, b); }`
 pub fn AvlTree(
     comptime T: type,
     comptime compareFn: fn (a: T, b: T) std.math.Order,
@@ -15,11 +24,13 @@ pub fn AvlTree(
 
         const Self = @This();
 
+        /// A tree containing no elements
         pub const empty: Self = .{
             .root = null,
             .size = 0,
         };
 
+        /// The internal node structure for our tree
         const AvlNode = struct {
             val: T,
             height: i32,
@@ -86,6 +97,7 @@ pub fn AvlTree(
             };
         }
 
+        /// Free memory used by the tree
         pub fn deinit(self: *Self, gpa: Allocator) void {
             // This is a "Morris Traveral". Google Gemini first told me that this was possible,
             // and I read the wikipedia article. It's also called "Threaded Binary Trees",
@@ -267,6 +279,7 @@ pub fn AvlTree(
             }
         }
 
+        /// Add a new element to the tree based on its order provided by `orderFn`
         pub fn add(self: *Self, gpa: Allocator, val: T) !void {
             if (self.root != null) {
                 const TraversalPosition = enum { initial, addNode };
@@ -342,6 +355,8 @@ pub fn AvlTree(
             self.size += 1;
         }
 
+        /// Remove the least significant element in the tree
+        /// based on its order provided by `orderFn`
         pub fn popFront(self: *Self, gpa: Allocator) !?T {
             if (self.root != null) {
                 const TraversalPosition = enum { initial, fixAvl };
@@ -393,11 +408,12 @@ pub fn AvlTree(
     };
 }
 
+/// A shared order function for tests
 fn order_i32(a: i32, b: i32) std.math.Order {
     return std.math.order(a, b);
 }
 
-test "init" {
+test "full test" {
     const gpa = std.testing.allocator;
 
     var my_avl_tree = AvlTree(i32, order_i32).empty;
