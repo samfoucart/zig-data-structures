@@ -427,4 +427,43 @@ test "init" {
     try expectEqual(0, my_avl_tree.root.?.left.?.height);
     try expectEqual(5, my_avl_tree.root.?.right.?.val);
     try expectEqual(0, my_avl_tree.root.?.right.?.height);
+
+    try my_avl_tree.add(gpa, -10);
+    try my_avl_tree.add(gpa, -5);
+
+    try expectEqual(2, my_avl_tree.root.?.val);
+    try expectEqual(2, my_avl_tree.root.?.height);
+    try expectEqual(-5, my_avl_tree.root.?.left.?.val);
+    try expectEqual(1, my_avl_tree.root.?.left.?.height);
+    try expectEqual(5, my_avl_tree.root.?.right.?.val);
+    try expectEqual(0, my_avl_tree.root.?.right.?.height);
+    try expectEqual(-10, my_avl_tree.root.?.left.?.left.?.val);
+    try expectEqual(0, my_avl_tree.root.?.left.?.left.?.height);
+    try expectEqual(1, my_avl_tree.root.?.left.?.right.?.val);
+    try expectEqual(0, my_avl_tree.root.?.left.?.right.?.height);
+
+    try my_avl_tree.add(gpa, 50);
+    try my_avl_tree.add(gpa, 100);
+
+    try my_avl_tree.add(gpa, 10);
+    try my_avl_tree.add(gpa, 7);
+
+    try expectEqual(2, my_avl_tree.root.?.val);
+    try expectEqual(3, my_avl_tree.root.?.height);
+    try expectEqual(-5, my_avl_tree.root.?.left.?.val);
+    try expectEqual(1, my_avl_tree.root.?.left.?.height);
+    try expectEqual(-10, my_avl_tree.root.?.left.?.left.?.val);
+    try expectEqual(0, my_avl_tree.root.?.left.?.left.?.height);
+    try expectEqual(1, my_avl_tree.root.?.left.?.right.?.val);
+    try expectEqual(0, my_avl_tree.root.?.left.?.right.?.height);
+    try expectEqual(50, my_avl_tree.root.?.right.?.val);
+    try expectEqual(2, my_avl_tree.root.?.right.?.height);
+    try expectEqual(7, my_avl_tree.root.?.right.?.left.?.val);
+    try expectEqual(1, my_avl_tree.root.?.right.?.left.?.height);
+    try expectEqual(5, my_avl_tree.root.?.right.?.left.?.left.?.val);
+    try expectEqual(0, my_avl_tree.root.?.right.?.left.?.left.?.height);
+    try expectEqual(10, my_avl_tree.root.?.right.?.left.?.right.?.val);
+    try expectEqual(0, my_avl_tree.root.?.right.?.left.?.right.?.height);
+    try expectEqual(100, my_avl_tree.root.?.right.?.right.?.val);
+    try expectEqual(0, my_avl_tree.root.?.right.?.right.?.height);
 }
