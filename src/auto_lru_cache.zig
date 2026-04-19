@@ -2,6 +2,9 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+/// Generic Linked List used internally by the LRUCache.
+/// This list is generic, so it technically could be used outside of the cache
+/// for general purposes.
 pub fn LRUCacheLinkedList(
     comptime T: type,
 ) type {
@@ -22,11 +25,13 @@ pub fn LRUCacheLinkedList(
             tail: *Node,
         };
 
+        /// A Linked List containing no elements
         pub const empty: Self = .{
             .ends = null,
             .size = 0,
         };
 
+        /// Free the memory used by the linked list
         pub fn deinit(self: *Self, gpa: Allocator) void {
             const ends = self.ends orelse return;
 
@@ -41,6 +46,7 @@ pub fn LRUCacheLinkedList(
             self.* = undefined;
         }
 
+        /// Add an element to the front of the list.
         pub fn pushFront(self: *Self, gpa: Allocator, val: T) !void {
             var new_node = try gpa.create(Node);
             new_node.* = .{
@@ -63,6 +69,8 @@ pub fn LRUCacheLinkedList(
             self.size += 1;
         }
 
+        /// Remove an element from the front of the list
+        /// and free the memory to store it.
         pub fn popFront(self: *Self, gpa: Allocator) !T {
             if (self.ends) |*ends| {
                 const delete_node = ends.head;
@@ -85,6 +93,7 @@ pub fn LRUCacheLinkedList(
             }
         }
 
+        /// Get the front of the list without removing it.
         pub fn peekFront(self: *Self) !T {
             if (self.ends) |ends| {
                 return ends.head.val;
@@ -93,6 +102,7 @@ pub fn LRUCacheLinkedList(
             }
         }
 
+        /// Add an element to the back of the list.
         pub fn pushBack(self: *Self, gpa: Allocator, val: T) !void {
             var new_node = try gpa.create(Node);
             new_node.* = .{
@@ -115,6 +125,8 @@ pub fn LRUCacheLinkedList(
             self.size += 1;
         }
 
+        /// Get the last element of the list,
+        /// and free the memory used to store it.
         pub fn popBack(self: *Self, gpa: Allocator) !T {
             if (self.ends) |*ends| {
                 const delete_node = ends.tail;
@@ -137,6 +149,7 @@ pub fn LRUCacheLinkedList(
             }
         }
 
+        /// Get the last element of the list without removing it.
         pub fn peekBack(self: *Self) !T {
             if (self.ends) |ends| {
                 return ends.tail.val;
@@ -145,6 +158,8 @@ pub fn LRUCacheLinkedList(
             }
         }
 
+        /// Insert a value before the chosen node.
+        /// This function returns the newly inserted node.
         pub fn insertBefore(self: *Self, gpa: Allocator, node: *Node, val: T) !*Node {
             if (self.ends) |*ends| {
                 self.size += 1;
@@ -182,6 +197,10 @@ pub fn LRUCacheLinkedList(
             }
         }
 
+        /// Remove the chosen node from the list.
+        /// If the list contains one node, the function returns null, otherwise
+        /// if the front of the list is removed, this function returns the new head.
+        /// If any other node is removed, the previous node is returned.
         pub fn removeNode(self: *Self, gpa: Allocator, node: *Node) !?*Node {
             if (self.ends) |*ends| {
                 defer gpa.destroy(node);
@@ -231,6 +250,14 @@ pub fn LRUCacheLinkedList(
     };
 }
 
+/// A "Least Recently Used" Cache for storing generic data.
+/// Initialize with `withMaxCapacity`.
+/// This cache will have a maximum capacity set at initialization.
+/// If more keys are inserted to the cache than the maximum capacity,
+/// the least recently used key will be evicted.
+///
+/// When either putting or getting a key from the cache,
+/// that key is promoted to the most recently used.
 pub fn AutoLRUCache(
     comptime K: type,
     comptime V: type,
@@ -247,6 +274,7 @@ pub fn AutoLRUCache(
             val: V,
         };
 
+        /// Initializes an empty cache with a maximum capacity.
         pub fn withMaxCapacity(max_capacity: usize) Self {
             return .{
                 .internal_map = std.AutoHashMapUnmanaged(K, *LRUCacheLinkedList(KeyVal).Node).empty,
@@ -255,11 +283,14 @@ pub fn AutoLRUCache(
             };
         }
 
+        /// Free the memory used by the cache.
         pub fn deinit(self: *Self, gpa: Allocator) void {
             self.internal_map.deinit(gpa);
             self.internal_list.deinit(gpa);
         }
 
+        /// Insert or Update a key-value pair in the cache.
+        /// The key-value pair selected will be promoted to most recently used.
         pub fn put(self: *Self, gpa: Allocator, key: K, val: V) !void {
             if (self.internal_map.get(key)) |node| {
                 _ = try self.internal_list.removeNode(gpa, node);
@@ -289,6 +320,8 @@ pub fn AutoLRUCache(
             }
         }
 
+        /// Get a value from the cache by its key.
+        /// The key-value pair chosen will be promoted to most recently used.
         pub fn get(self: *Self, gpa: Allocator, key: K) !?V {
             if (self.internal_map.get(key)) |node| {
                 const result = node.val.val;
